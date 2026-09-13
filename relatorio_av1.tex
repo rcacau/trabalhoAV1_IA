@@ -10,7 +10,7 @@
 
 \begin{document}
 
-\title{Modelos de Regressão e Classificação Linear por Mínimos Quadrados: Aplicação ao PIB da China e Eletromiografia Facial}
+\title{Modelos de Regressão e Classificação Linear por Mínimos Quadrados: Aplicação ao PIB da China e Sinais de EMG Facial}
 
 \author{
 \IEEEauthorblockN{Rafael Cacau \quad\quad Igor Praciano}
@@ -23,88 +23,176 @@ Fortaleza, Ceará, Brasil}
 \maketitle
 
 \begin{abstract}
-Este trabalho apresenta o desenvolvimento e a análise comparativa de modelos de aprendizagem supervisionada baseados no método dos Mínimos Quadrados Ordinários (MQO). Na primeira etapa (regressão), utilizou-se a série histórica do PIB da China para avaliar o MQO tradicional, o MQO regularizado por Tikhonov e o MQO polinomial com poda de ordem. Na segunda etapa (classificação), sinais de eletromiografia (EMG) de dois músculos faciais foram classificados em cinco expressões utilizando uma abordagem One-vs-All. Todos os modelos foram desenvolvidos a partir de operações matriciais com NumPy, sem o uso de bibliotecas com algoritmos pré-implementados. A validação foi conduzida por amostragem aleatória (Random Subsampling / Monte Carlo) com $R=500$ repetições (divisão 80/20). O modelo polinomial superou os lineares em ambas as aplicações, alcançando $R^2$ médio de 0,9949 na regressão ($q=9$) e acurácia média de 99,28\% na classificação ($q=4$).
+Neste trabalho foram estudados modelos baseados no método dos Mínimos Quadrados Ordinários (MQO), implementados utilizando operações matriciais em NumPy. Foram analisados dois problemas: a regressão do PIB da China e a classificação de sinais de eletromiografia (EMG) facial. Na regressão, foram comparados o modelo linear, o modelo com regularização de Tikhonov e o modelo polinomial com diferentes ordens. Na classificação, foi utilizada uma abordagem One-vs-All para separar cinco expressões faciais a partir de dois sinais de EMG. Os modelos foram avaliados por meio de 500 divisões aleatórias dos dados, usando 80\% das amostras para treinamento e 20\% para teste. Nos experimentos realizados, o modelo polinomial apresentou os melhores resultados, com $R^2 = 0,9949$ para a regressão com $q=9$ e acurácia média de $99,28\%$ para a classificação com $q=4$.
 \end{abstract}
 
 \begin{IEEEkeywords}
-Mínimos Quadrados, Regressão Polinomial, Regularização de Tikhonov, Eletromiografia, Classificação Multiclasse.
+Mínimos Quadrados, Regressão Linear, Regularização de Tikhonov, Eletromiografia, Classificação Multiclasse.
 \end{IEEEkeywords}
 
 \section{Introdução}
 
-O aprendizado de máquina supervisionado busca estimar uma função que mapeia um conjunto de variáveis de entrada (regressores) em uma variável dependente (alvo) por meio da minimização de uma função de custo. Esse paradigma se divide fundamentalmente em problemas de regressão, nos quais a resposta é quantitativa e contínua, e problemas de classificação, em que a resposta é qualitativa e categórica \cite{bishop}.
+Neste trabalho são estudados modelos de aprendizagem supervisionada aplicados a dois problemas diferentes. O primeiro é um problema de regressão, no qual o objetivo é estimar um valor contínuo. O segundo é um problema de classificação, no qual cada amostra deve ser associada a uma das classes disponíveis.
 
-O método dos Mínimos Quadrados Ordinários (MQO) fornece uma solução analítica clássica para problemas lineares nos parâmetros. No entanto, sua capacidade de generalização pode ser limitada quando a relação subjacente é não linear ou quando ocorrem problemas de multicolinearidade e sobreajuste (overfitting). Nesses cenários, o uso de extensões como a regularização de Tikhonov (Ridge Regression) e a expansão polinomial do espaço de características tornam-se ferramentas essenciais \cite{james}.
+O método dos Mínimos Quadrados Ordinários (MQO) é utilizado como base para os modelos estudados. Ele permite encontrar os coeficientes que minimizam o erro quadrático entre os valores reais e os valores estimados. Apesar de o modelo linear ser simples, ele pode apresentar dificuldades quando os dados possuem uma relação que não pode ser bem representada por uma reta.
 
-Neste estudo, aplicamos essas técnicas a dois conjuntos de dados reais: (i) a previsão do Produto Interno Bruto (PIB) da China em função do ano de análise; e (ii) o reconhecimento de cinco expressões faciais a partir de sinais captados por sensores de eletromiografia facial. O desempenho de cada abordagem foi avaliado rigorosamente por meio de 500 simulações de Monte Carlo.
+Uma alternativa utilizada neste trabalho foi a expansão polinomial. Nesse caso, novas entradas são criadas a partir de potências das variáveis originais, permitindo que o modelo represente relações curvas. Também foi analisada a regularização de Tikhonov, com o objetivo de observar seu efeito sobre os coeficientes encontrados pelo MQO.
+
+Os dois problemas utilizados nos experimentos foram:
+
+\begin{enumerate}
+    \item \textbf{Regressão do PIB da China:} estimar o PIB em dólares a partir do ano da medição, utilizando o arquivo \texttt{china\_gdp.csv}.
+    \item \textbf{Classificação de sinais de EMG:} identificar cinco expressões faciais a partir de dois sensores de eletromiografia, utilizando os arquivos \texttt{EMGDataset.csv} e \texttt{EMG1.csv}.
+\end{enumerate}
+
+Os modelos foram implementados sem o uso de bibliotecas que já fornecem algoritmos de aprendizagem prontos, como o scikit-learn.
 
 \section{Metodologia}
 
-\subsection{Organização dos Dados e Pré-processamento}
+\subsection{Dados utilizados e normalização}
 
-O conjunto de dados de regressão (\texttt{china\_gdp.csv}) contém $N = 55$ observações (1960--2014) com $p=1$ regressor (ano) e a resposta $y$ (PIB em dólares). O conjunto de classificação (\texttt{EMG1.csv}) contém $N = 50.000$ amostras com $p=2$ canais musculares (Sensor 1: Corrugador do Supercílio; Sensor 2: Zigomático Maior) e $C=5$ classes balanceadas (Neutro, Sorriso, Sobrancelhas Levantadas, Surpreso e Rabugento).
+Para a regressão do PIB da China, foram utilizadas $N=55$ amostras, correspondentes aos anos de 1960 a 2014, com uma variável de entrada:
 
-Para assegurar estabilidade numérica no cálculo das potências polinomiais e evitar distorções de escala, as entradas $X$ foram padronizadas por Z-score:
 \begin{equation}
-z = \frac{x - \mu_{\text{treino}}}{\sigma_{\text{treino}}},
-\label{eq:zscore}
-\end{equation}
-em que a média $\mu_{\text{treino}}$ e o desvio-padrão $\sigma_{\text{treino}}$ são calculados estritamente sobre a partição de treino de cada rodada, prevenindo vazamento de dados (\textit{data leakage}).
-
-\subsection{Formulação do MQO e Regularização de Tikhonov}
-
-Definindo a matriz de projeto $\Phi \in \mathbb{R}^{N \times (p+1)}$ com a inclusão de uma coluna unitária para a estimativa do intercepto $\beta_0$, o vetor de parâmetros $\boldsymbol{\beta}$ para o MQO tradicional é obtido analiticamente via equações normais:
-\begin{equation}
-\boldsymbol{\beta} = (\Phi^T \Phi)^{-1} \Phi^T Y = \Phi^\dagger Y,
-\label{eq:mqo}
-\end{equation}
-onde $\dagger$ representa a pseudoinversa de Moore-Penrose, garantindo estabilidade computacional mesmo em matrizes mal-condicionadas.
-
-A regularização de Tikhonov adiciona uma penalidade $\ell_2$ proporcional a $\lambda \ge 0$ sobre a norma dos coeficientes:
-\begin{equation}
-\boldsymbol{\beta} = (\Phi^T \Phi + \lambda I)^{-1} \Phi^T Y,
-\label{eq:tikhonov}
-\end{equation}
-sendo $I$ a matriz identidade com dimensão compatível. Na regressão, avaliaram-se os valores $\lambda \in \{0; 0,25; 0,5; 0,75; 1\}$.
-
-\subsection{Expansão Polinomial e Poda de Ordem}
-
-Para capturar relações não lineares, a matriz de características foi expandida até a ordem $q$ segundo a estrutura adotada em sala de aula (sem termos cruzados):
-\begin{equation}
-\Phi = [\mathbf{1}, \; X, \; X^2, \; \dots, \; X^q].
-\label{eq:poly}
+X \in \mathbb{R}^{55 \times 1}, \quad
+y \in \mathbb{R}^{55 \times 1}.
 \end{equation}
 
-A escolha do hiperparâmetro $q$ foi realizada por poda baseada em validação: na regressão testaram-se ordens $q \in [1, 10]$ maximizando o $R^2$ médio, e na classificação avaliaram-se ordens $q \in [1, 6]$ buscando o melhor compromisso entre acurácia e tempo de treinamento.
+Para a classificação dos sinais de EMG, foram utilizadas $N=50.000$ amostras, com dois sensores faciais e cinco classes. Os sensores utilizados foram o Corrugador do Supercílio e o Zigomático Maior. As classes são: 1--Neutro, 2--Sorriso, 3--Sobrancelhas levantadas, 4--Surpreso e 5--Rabugento.
 
-\subsection{Classificação Multiclasse One-vs-All}
+A matriz de saída possui uma coluna para cada classe:
 
-Os rótulos das $C=5$ classes foram codificados em uma matriz $Y \in \mathbb{R}^{N \times C}$, onde a coluna da classe correspondente recebe $+1$ e as demais $-1$. Após o ajuste matricial de $\boldsymbol{\beta} \in \mathbb{R}^{(p_{poly}+1) \times C}$, a predição para uma nova amostra é definida pelo argumento máximo dos escores contínuos:
 \begin{equation}
-\hat{c} = \arg\max_{j \in \{1, \dots, C\}} (\phi(\mathbf{x})^T \boldsymbol{\beta})_j.
-\label{eq:argmax}
+X \in \mathbb{R}^{50000 \times 2}, \quad
+Y \in \mathbb{R}^{50000 \times 5}.
 \end{equation}
 
-\subsection{Procedimento de Validação}
+Antes do treinamento, os dados foram padronizados utilizando o Z-score. Para cada variável, foi utilizada a média e o desvio padrão calculados no conjunto de treinamento:
 
-Adotou-se a validação por amostragem aleatória repetida (\textit{Random Subsampling Validation} / Monte Carlo) com $R = 500$ repetições. Em cada iteração, os dados foram particionados aleatoriamente em 80\% para treino e 20\% para teste. As métricas avaliadas foram o Erro Quadrático Médio ($MSE$) e o Coeficiente de Determinação ($R^2$) na regressão, e a taxa de acurácia global na classificação.
+\begin{equation}
+z = \frac{x-\mu_{\text{treino}}}{\sigma_{\text{treino}}}.
+\end{equation}
+
+A mesma média e o mesmo desvio padrão obtidos no treinamento foram utilizados para transformar os dados de teste. Dessa forma, as informações do conjunto de teste não são utilizadas durante o treinamento.
+
+\subsection{Modelos}
+
+\subsubsection{Modelo polinomial}
+
+Para representar relações não lineares, a entrada foi expandida com potências até a ordem $q$. Foi incluído também o termo constante para representar o intercepto:
+
+\begin{equation}
+X_q = [\mathbf{1},\;X,\;X^2,\;\dots,\;X^q].
+\end{equation}
+
+Quando $q=1$, o modelo corresponde ao caso linear com intercepto.
+
+A notação $X_q$ é utilizada aqui para representar a matriz de entrada depois da expansão polinomial. Assim, as equações seguintes utilizam a mesma matriz, sem a necessidade de introduzir uma segunda notação para a matriz de características.
+
+\subsubsection{MQO tradicional}
+
+Os coeficientes do modelo são obtidos minimizando a soma dos erros quadráticos. A solução utilizada foi:
+
+\begin{equation}
+\beta = (X_q^T X_q)^{-1}X_q^T Y.
+\end{equation}
+
+Na implementação, também pode ser utilizada a pseudoinversa de Moore-Penrose para obter uma solução mais estável quando a matriz não possui inversa direta:
+
+\begin{equation}
+\beta = X_q^\dagger Y.
+\end{equation}
+
+\subsubsection{MQO com regularização de Tikhonov}
+
+No modelo regularizado, é adicionada uma parcela à matriz usada no cálculo dos coeficientes:
+
+\begin{equation}
+\beta =
+(X_q^T X_q+\lambda I)^{-1}X_q^T Y,
+\end{equation}
+
+onde $\lambda$ representa o parâmetro de regularização e $I$ é a matriz identidade.
+
+Foram testados os valores:
+
+\begin{equation}
+\lambda \in \{0;\;0,25;\;0,5;\;0,75;\;1\}.
+\end{equation}
+
+A ideia é verificar se a alteração dos coeficientes provocada pela regularização produz alguma melhora nos resultados.
+
+\subsubsection{Classificação multiclasse}
+
+Para a classificação, os rótulos foram representados utilizando $+1$ para a classe correspondente e $-1$ para as demais classes. Depois de calcular os coeficientes, a classe escolhida para uma nova amostra é aquela que apresenta o maior valor de saída:
+
+\begin{equation}
+\hat{c} =
+\arg\max_{j \in \{1,\dots,C\}}
+\left(X_q(x)^T\beta\right)_j.
+\end{equation}
+
+\subsection{Validação dos modelos}
+
+Para comparar os modelos, foram realizadas 500 divisões aleatórias dos dados. Em cada rodada, 80\% das amostras foram utilizadas para treinamento e 20\% para teste.
+
+\begin{itemize}
+    \item $R=500$ rodadas;
+    \item 80\% dos dados para treinamento;
+    \item 20\% dos dados para teste.
+\end{itemize}
+
+Na regressão foram calculados o Erro Quadrático Médio (MSE) e o coeficiente de determinação ($R^2$):
+
+\begin{equation}
+MSE = \frac{1}{N}\sum(y-\hat{y})^2
+\end{equation}
+
+e
+
+\begin{equation}
+R^2 =
+1-\frac{\sum(y-\hat{y})^2}
+{\sum(y-\bar{y})^2}.
+\end{equation}
+
+Na classificação, foi utilizada a acurácia, calculada pela porcentagem de amostras classificadas corretamente.
 
 \section{Resultados e Discussão}
 
 \subsection{Regressão do PIB da China}
 
-A dispersão inicial dos dados (Fig.~\ref{fig:reg_modelos}) evidencia uma forte aceleração no crescimento do PIB a partir da década de 1990, caracterizando um padrão claramente não linear.
+A primeira análise foi feita com os dados do PIB da China. A Fig.~\ref{fig:reg_modelos} apresenta os dados e os ajustes obtidos pelos modelos. É possível observar que o crescimento do PIB não segue uma tendência linear ao longo de todo o período. O crescimento se torna mais acentuado principalmente a partir da década de 1990.
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.95\columnwidth]{../trabalho_av1/resultados/regressao/03_modelos_iniciais.png}
-\caption{Ajuste inicial dos modelos lineares e polinomial sobre o PIB da China.}
+\includegraphics[width=0.95\columnwidth]{trabalho_av1/resultados/regressao/03_modelos_iniciais.png}
+\caption{Ajuste dos modelos lineares e polinomial sobre o PIB da China.}
 \label{fig:reg_modelos}
 \end{figure}
 
-Na etapa de poda polinomial, o $R^2$ médio aumentou monotonicamente até $q=9$ ($R^2 = 0,9965$), enquanto $q=10$ apresentou ligeiro aumento de dispersão sem ganho preditivo, confirmando $q=9$ como a ordem ideal.
+Foram testadas ordens polinomiais de $q=1$ até $q=10$. O valor médio de $R^2$ aumentou até a ordem $q=9$, que apresentou $R^2=0,9965$. Para $q=10$, houve aumento da variância sem uma melhora relevante no $R^2$. Por esse motivo, foi escolhida a ordem $q=9$.
 
-A Tabela~\ref{tab:regressao} sintetiza as estatísticas obtidas nas 500 rodadas de Monte Carlo.
+A Tabela~\ref{tab:estimativas_beta} apresenta os valores dos coeficientes encontrados para os modelos lineares. É possível observar uma redução gradual da norma dos coeficientes conforme o valor de $\lambda$ aumenta.
+
+\begin{table}[htbp]
+\caption{Estimativas de $\beta$ e norma para os modelos lineares}
+\label{tab:estimativas_beta}
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Modelo & $\lambda$ & $\beta_0$ & $\beta_1$ & $\|\beta\|$ \\
+\midrule
+MQO Tradicional & 0,00 & $1,437\times10^{12}$ & $1,793\times10^{12}$ & $2,298\times10^{12}$ \\
+MQO Reg. (0,25) & 0,25 & $1,431\times10^{12}$ & $1,785\times10^{12}$ & $2,288\times10^{12}$ \\
+MQO Reg. (0,50) & 0,50 & $1,424\times10^{12}$ & $1,777\times10^{12}$ & $2,277\times10^{12}$ \\
+MQO Reg. (0,75) & 0,75 & $1,418\times10^{12}$ & $1,769\times10^{12}$ & $2,267\times10^{12}$ \\
+MQO Reg. (1,00) & 1,00 & $1,411\times10^{12}$ & $1,761\times10^{12}$ & $2,257\times10^{12}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A Tabela~\ref{tab:regressao} reúne os resultados obtidos nas 500 rodadas de validação.
 
 \begin{table}[htbp]
 \caption{Desempenho dos modelos de regressão ($R=500$ rodadas)}
@@ -113,43 +201,51 @@ A Tabela~\ref{tab:regressao} sintetiza as estatísticas obtidas nas 500 rodadas 
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{lrrrr}
 \toprule
-Modelo & $MSE$ Médio & $R^2$ Médio & Desvio $R^2$ & Melhor $R^2$ \\
+Modelo & MSE Médio & $R^2$ Médio & Desvio $R^2$ & Melhor $R^2$ \\
 \midrule
-\textbf{Polinomial ($q=9$)} & $\mathbf{1,45\times 10^{22}}$ & $\mathbf{0,9949}$ & $\mathbf{0,0145}$ & $\mathbf{0,9999}$ \\
-MQO tradicional & $3,38\times 10^{24}$ & $-1,3214$ & $9,5537$ & $0,7586$ \\
-MQO reg. ($\lambda=0,25$) & $3,38\times 10^{24}$ & $-1,2942$ & $9,4380$ & $0,7570$ \\
-MQO reg. ($\lambda=0,50$) & $3,37\times 10^{24}$ & $-1,2676$ & $9,3244$ & $0,7555$ \\
-MQO reg. ($\lambda=0,75$) & $3,37\times 10^{24}$ & $-1,2415$ & $9,2128$ & $0,7539$ \\
-MQO reg. ($\lambda=1,00$) & $3,37\times 10^{24}$ & $-1,2160$ & $9,1031$ & $0,7522$ \\
+\textbf{Polinomial ($q=9$)} & $\mathbf{1,45\times10^{22}}$ & $\mathbf{0,9949}$ & $\mathbf{0,0145}$ & $\mathbf{0,9999}$ \\
+MQO tradicional & $3,38\times10^{24}$ & $-1,3214$ & $9,5537$ & $0,7586$ \\
+MQO reg. ($\lambda=0,25$) & $3,38\times10^{24}$ & $-1,2942$ & $9,4380$ & $0,7570$ \\
+MQO reg. ($\lambda=0,50$) & $3,37\times10^{24}$ & $-1,2676$ & $9,3244$ & $0,7555$ \\
+MQO reg. ($\lambda=0,75$) & $3,37\times10^{24}$ & $-1,2415$ & $9,2128$ & $0,7539$ \\
+MQO reg. ($\lambda=1,00$) & $3,37\times10^{24}$ & $-1,2160$ & $9,1031$ & $0,7522$ \\
 \bottomrule
 \end{tabular}}
 \end{table}
 
-Os modelos lineares de primeira ordem apresentaram desempenho insuficiente, com $R^2$ médio negativo. Esse comportamento ocorre porque, em partições onde o conjunto de teste concentra anos recentes de forte alta, uma reta prediz pior do que a própria média amostral do teste. A regularização de Tikhonov reduziu a norma dos coeficientes (de $2,298\times 10^{12}$ para $2,257\times 10^{12}$ com $\lambda=1$), trazendo um ganho marginal, mas incapaz de compensar o viés do formato linear. O polinômio de ordem 9, por sua vez, aderiu com excelência à curvatura dos dados ($R^2 = 0,9949$).
+Os modelos lineares apresentaram $R^2$ médio negativo. Isso mostra que, para as divisões de teste utilizadas, uma reta não conseguiu acompanhar bem o crescimento do PIB. A regularização apresentou uma pequena melhora no valor médio de $R^2$, mas não muda o fato de que o modelo continua sendo linear.
 
-\subsection{Classificação dos Sinais de Eletromiografia}
+O modelo polinomial de ordem $q=9$ apresentou um resultado bem diferente, com $R^2$ médio de $0,9949$. Nesse caso, a expansão das entradas permitiu representar melhor a curva observada nos dados.
 
-A visualização bidimensional dos sensores musculares (Fig.~\ref{fig:emg_dispersao}) revela que, embora algumas categorias apresentem agrupamentos distintos, há regiões de sobreposição e formatos curvados que impedem uma separação puramente linear entre as cinco classes.
+\subsection{Classificação de sinais de EMG facial}
+
+Na segunda parte do trabalho foram utilizados sinais de EMG obtidos com sensores Myoware e um microcontrolador ESP32. Os sinais foram coletados a uma taxa de 1 kHz, com resolução de 12 bits, variando de 0 a 4095. Foram utilizados dois músculos faciais: Corrugador do Supercílio e Zigomático Maior.
+
+As cinco classes consideradas foram Neutro, Sorriso, Sobrancelhas Levantadas, Surpreso e Rabugento.
+
+A Fig.~\ref{fig:emg_dispersao} apresenta a distribuição das amostras. Pode-se observar que as classes não são separadas apenas por retas, existindo regiões de sobreposição entre elas.
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.92\columnwidth]{../trabalho_av1/resultados/classificacao/02_dispersao_emg.png}
-\caption{Dispersão dos sinais de EMG dos dois sensores faciais para as cinco classes.}
+\includegraphics[width=0.92\columnwidth]{trabalho_av1/resultados/classificacao/02_dispersao_emg.png}
+\caption{Dispersão dos sinais de EMG dos sensores faciais para as 5 classes.}
 \label{fig:emg_dispersao}
 \end{figure}
 
-Na avaliação de complexidade, as ordens $q \in \{1, 2, 3, 4, 5, 6\}$ alcançaram acurácias de 72,53\%, 94,49\%, 97,64\%, 99,24\%, 99,26\% e 99,30\%, respectivamente. A ordem $q=4$ foi selecionada por garantir acurácia superior a 99,2\% com tempo de estimação desprezível (menos de 0,05 s), tornando ordens superiores desnecessárias.
+Para o modelo polinomial, foram testadas ordens de $q=1$ até $q=6$. As acurácias obtidas foram, respectivamente, 72,53\%, 94,49\%, 97,64\%, 99,24\%, 99,26\% e 99,30\%.
 
-A Fig.~\ref{fig:emg_regioes} ilustra as fronteiras de decisão geradas pelos três modelos. Observa-se que os modelos de primeira ordem produzem hiperplanos retos incapazes de circunscrever as classes internas, enquanto o modelo polinomial ajusta fronteiras curvas que se moldam à densidade de cada gesto.
+A ordem $q=4$ foi escolhida considerando o resultado de acurácia e o tempo de treinamento. Apesar de as ordens seguintes apresentarem valores próximos ou ligeiramente superiores, o modelo de ordem 4 já apresentou mais de 99,2\% de acerto com tempo de cálculo inferior a 0,05 segundos.
+
+A Fig.~\ref{fig:emg_regioes} mostra as regiões de decisão dos modelos. No modelo linear, as fronteiras são retas e possuem maior dificuldade para separar algumas das classes. Com a expansão polinomial, as fronteiras podem assumir formatos curvos e acompanhar melhor a distribuição das amostras.
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\columnwidth]{../trabalho_av1/resultados/classificacao/03_regioes_decisao.png}
-\caption{Regiões de decisão no plano dos sensores para os modelos avaliados.}
+\includegraphics[width=\columnwidth]{trabalho_av1/resultados/classificacao/03_regioes_decisao.png}
+\caption{Regiões e fronteiras de decisão dos modelos de classificação.}
 \label{fig:emg_regioes}
 \end{figure}
 
-A Tabela~\ref{tab:classificacao} consolida os resultados obtidos nas 500 iterações de Monte Carlo.
+A Tabela~\ref{tab:classificacao} apresenta os resultados das 500 rodadas de validação. A distribuição das acurácias pode ser observada na Fig.~\ref{fig:box_acuracia}.
 
 \begin{table}[htbp]
 \caption{Desempenho dos classificadores ($R=500$ rodadas)}
@@ -167,28 +263,43 @@ MQO regularizado ($\lambda=0,25$) & 72,3890\% & 0,6428\% & 74,18\% & 70,13\% \\
 \end{tabular}}
 \end{table}
 
-O classificador polinomial atingiu 99,28\% de acurácia média com baixíssima variância ($0,083\%$), mantendo mais de 99,0\% de acerto mesmo em sua pior partição. Devido ao grande volume de dados de treino ($N_{\text{treino}}=40.000$), a regularização com $\lambda=0,25$ teve impacto ínfimo sobre o MQO linear, reforçando que a limitação principal era a rigidez geométrica das fronteiras.
-
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.92\columnwidth]{../trabalho_av1/resultados/classificacao/06_distribuicao_acuracia.png}
+\includegraphics[width=0.92\columnwidth]{trabalho_av1/resultados/classificacao/06_distribuicao_acuracia.png}
 \caption{Distribuição da acurácia nas 500 rodadas de validação.}
 \label{fig:box_acuracia}
 \end{figure}
 
+O classificador polinomial apresentou acurácia média de 99,28\%, com desvio padrão de 0,08\%. Em todas as rodadas, a acurácia ficou acima de 99\%.
+
+Para o modelo linear, a regularização com $\lambda=0,25$ praticamente não alterou a acurácia. Isso indica que, neste conjunto de dados, a principal diferença entre os modelos está na capacidade de representar fronteiras de decisão curvas.
+
 \section{Conclusões}
 
-A realização deste trabalho permitiu verificar na prática as propriedades e os limites dos modelos baseados no método dos mínimos quadrados:
+Os experimentos realizados permitiram comparar o comportamento do MQO tradicional, da regularização de Tikhonov e da expansão polinomial em dois problemas diferentes.
 
-1. **Flexibilidade do Modelo:** Nos dois problemas avaliados, a expansão polinomial foi determinante para o sucesso da predição. Na regressão do PIB, elevou o $R^2$ de valores negativos para $0,9949$; na classificação de EMG, aumentou a acurácia de $72,39\%$ para $99,28\%$.
-2. **Critério de Parcimônia:** A estratégia de poda provou ser eficaz para encontrar a ordem polinomial ótima ($q=9$ para regressão e $q=4$ para classificação), evitando sobreajuste e custo computacional desnecessário.
-3. **Papel da Regularização:** A penalização de Tikhonov estabilizou os coeficientes do modelo linear, mas não alterou sua natureza linear. Quando os dados possuem geometria não linear, o aumento de capacidade representacional via características polinomiais é indispensável.
-4. **Robustez Estatística:** A validação com 500 rodadas de Monte Carlo assegurou que as conclusões independem de partições favoráveis, comprovando a estabilidade e a reprodutibilidade dos algoritmos implementados.
+Na regressão do PIB da China, os modelos lineares apresentaram resultados inferiores aos do modelo polinomial. O melhor resultado foi obtido com a ordem $q=9$, que apresentou $R^2$ médio de $0,9949$. Isso mostra que, para os dados utilizados, a relação entre o ano e o PIB foi melhor representada utilizando os termos polinomiais.
+
+Na classificação dos sinais de EMG, também houve uma diferença significativa entre o modelo linear e o modelo polinomial. A acurácia média passou de aproximadamente $72,39\%$ no modelo linear para $99,28\%$ no modelo polinomial de ordem $q=4$.
+
+A regularização de Tikhonov reduziu a norma dos coeficientes dos modelos de regressão, mas teve pouca influência no desempenho final dos modelos analisados. Já a expansão polinomial apresentou uma mudança maior nos resultados, principalmente porque permitiu representar relações não lineares presentes nos dados.
+
+Por fim, os testes com diferentes ordens polinomiais ajudaram a escolher valores que apresentaram bons resultados sem utilizar uma ordem maior do que a necessária nos experimentos realizados. Para a regressão foi escolhida a ordem $q=9$ e, para a classificação, a ordem $q=4$.
 
 \begin{thebibliography}{00}
-\bibitem{bishop} C. M. Bishop, \textit{Pattern Recognition and Machine Learning}. New York, NY, USA: Springer, 2006.
-\bibitem{james} G. James, D. Witten, T. Hastie, and R. Tibshirani, \textit{An Introduction to Statistical Learning}, 2nd ed. Springer, 2021.
-\bibitem{aula} P. C. S. Barbosa, ``Fundamentos da Regressão e Classificação Linear'', Notas de Aula da disciplina de Inteligência Artificial Computacional, Universidade de Fortaleza (UNIFOR), 2024.
+
+\bibitem{bishop}
+C. M. Bishop, \textit{Pattern Recognition and Machine Learning}. New York: Springer, 2006.
+
+\bibitem{james}
+G. James, D. Witten, T. Hastie, e R. Tibshirani,
+\textit{An Introduction to Statistical Learning}, 2ª ed. Springer, 2021.
+
+\bibitem{aula}
+P. C. S. Barbosa,
+``Notas de Aula da Disciplina de Inteligência Artificial Computacional'',
+Universidade de Fortaleza (UNIFOR), 2024.
+
 \end{thebibliography}
 
 \end{document}
